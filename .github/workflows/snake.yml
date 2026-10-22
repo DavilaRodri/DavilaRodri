@@ -1,4 +1,4 @@
-# Dibuja la serpiente que se come el gráfico de contribuciones y la deja en la rama "output"
+# Dibuja la serpiente que se come el gráfico de contribuciones (y crece) y la deja en la rama "output"
 name: Serpiente de contribuciones
 
 on:
@@ -15,11 +15,24 @@ jobs:
   serpiente:
     runs-on: ubuntu-latest
     steps:
-      - uses: Platane/snk@v3
-        with:
-          github_user_name: ${{ github.repository_owner }}
-          outputs: |
-            dist/snake.svg?palette=github-dark&color_snake=#ff2fb3&color_dots=#161b22,#0e4429,#006d32,#26a641,#39d353
+      - uses: actions/checkout@v4
+      # Serpiente propia (scripts/serpiente.mjs): crece con cada día con contribuciones que se come
+      - name: Descargar el gráfico de contribuciones
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api graphql -F login="${{ github.repository_owner }}" -f query='
+            query($login: String!) {
+              user(login: $login) {
+                contributionsCollection {
+                  contributionCalendar {
+                    weeks { contributionDays { contributionCount contributionLevel weekday } }
+                  }
+                }
+              }
+            }' > datos.json
+      - name: Dibujar la serpiente
+        run: node scripts/serpiente.mjs datos.json dist/snake.svg
       - uses: crazy-max/ghaction-github-pages@v4
         with:
           target_branch: output
