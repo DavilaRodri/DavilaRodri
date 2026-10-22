@@ -3,7 +3,7 @@ name: Serpiente de contribuciones
 
 on:
   schedule:
-    - cron: "0 5 * * *"
+    - cron: "0 */6 * * *"
   workflow_dispatch:
   push:
     branches: [main]
