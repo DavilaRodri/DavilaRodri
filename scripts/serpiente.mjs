@@ -20,27 +20,61 @@ semanas.forEach((s, x) => s.contributionDays.forEach(d => celdas.push({ x, y: d.
 const cols = semanas.length;
 const pos = (x, y) => [M + x * C + T / 2, M + y * C + T / 2];
 
-// Recorrido en zigzag por columnas, pasando por todas las celdas existentes
-const porCol = {};
-celdas.forEach(c => (porCol[c.x] ||= []).push(c));
-// (las semanas a medias se rellenan con huecos para que no haya saltos)
-const ruta = [];
-for (let x = 0; x < cols; x++) {
-  const filas = [0, 1, 2, 3, 4, 5, 6];
-  if (x % 2) filas.reverse();
-  filas.forEach(y => ruta.push((porCol[x] || []).find(c => c.y === y) || { x, y, n: 0, hueco: true }));
+// Recorrido como la serpiente clásica: primero se come los días con pocas contribuciones
+// (verde claro) y acaba con los de muchas (verde oscuro). Va siempre al más cercano de
+// cada nivel, celda a celda, rodeando los que aún no le toca comer.
+const celda = (x, y) => celdas.find(c => c.x === x && c.y === y);
+const comido = new Set();
+let cab = { x: -1, y: 0 };
+const pasos = [cab];                          // posiciones de la cabeza, una celda por paso
+const comidas = [];                           // { c, paso } en orden
+const pasoDe = new Map();
+const dentro = (x, y) => x >= -1 && x <= cols && y >= 0 && y <= 6;
+const camino = (desde, objetivo, nivel) => {   // BFS; null si no hay camino
+  const clave = (x, y) => x + ',' + y, prev = new Map([[clave(desde.x, desde.y), null]]);
+  const cola = [desde];
+  while (cola.length) {
+    const p = cola.shift();
+    if (objetivo(p)) {
+      const r = [];
+      for (let q = p; q; q = prev.get(clave(q.x, q.y))) r.unshift(q);
+      return r.slice(1);
+    }
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = p.x + dx, y = p.y + dy, k = clave(x, y);
+      if (!dentro(x, y) || prev.has(k)) continue;
+      const c = celda(x, y);
+      // No pisa días más oscuros que aún no le tocan (salvo que no haya otra)
+      if (nivel && c && c.n > nivel && !comido.has(c)) continue;
+      prev.set(k, p);
+      cola.push({ x, y });
+    }
+  }
+  return null;
+};
+for (let nivel = 1; nivel <= 4; nivel++) {
+  for (;;) {
+    const quedan = celdas.filter(c => c.n === nivel && !comido.has(c));
+    if (!quedan.length) break;
+    const esObjetivo = p => { const c = celda(p.x, p.y); return c && c.n === nivel && !comido.has(c); };
+    const r = camino(cab, esObjetivo, nivel) || camino(cab, esObjetivo, 0);
+    pasos.push(...r);
+    cab = r[r.length - 1];
+    const c = celda(cab.x, cab.y);
+    comido.add(c);
+    comidas.push({ c, paso: pasos.length - 1 });
+    pasoDe.set(c, pasos.length - 1);
+  }
 }
-// Entra por la izquierda y sale por la derecha
-// (todos los tramos miden una celda, así el avance es uniforme)
-const ultima = ruta[ruta.length - 1], salidaPts = [];
-for (let k = 1; k <= MAX + 2; k++) salidaPts.push(pos(ultima.x + k, ultima.y));
-const puntos = [pos(-1, ruta[0].y), ...ruta.map(c => pos(c.x, c.y)), ...salidaPts];
+// Sale por la derecha y sigue recto hasta que entra toda la cola
+const fuera = camino(cab, p => p.x === cols, 0) || [];
+pasos.push(...fuera);
+cab = pasos[pasos.length - 1];
+for (let k = 1; k <= MAX + 2; k++) pasos.push({ x: cab.x + k, y: cab.y });
+const puntos = pasos.map(p => pos(p.x, p.y));
 const d = 'M' + puntos.map(p => p.join(' ')).join(' L');
 const largoRuta = puntos.length - 1;          // en celdas
 
-// Momento en que la cabeza llega a cada celda (en pasos)
-const comidas = [];
-ruta.forEach((c, i) => { if (c.n > 0) comidas.push({ c, paso: i + 1 }); });
 const segmentos = Math.min(MAX, comidas.length) + 1;   // cabeza + uno por comida
 const total = (largoRuta + segmentos) * PASO + 1;      // + pausa al final
 const fr = s => Math.min(1, (s * PASO) / total).toFixed(4);   // fracción del ciclo
@@ -66,7 +100,7 @@ celdas.forEach(c => {
   const [cx, cy] = pos(c.x, c.y);
   const base = `x="${cx - T / 2}" y="${cy - T / 2}" width="${T}" height="${T}" rx="2"`;
   if (!c.n) { rejilla += `<rect ${base} fill="${VERDES[0]}"/>`; return; }
-  const i = ruta.indexOf(c) + 1;
+  const i = pasoDe.get(c);
   rejilla += `<rect ${base} fill="${VERDES[c.n]}"><animate attributeName="fill" values="${VERDES[c.n]};${VERDES[0]}" keyTimes="0;${fr(i + 0.2)}" calcMode="discrete" ${dur}/></rect>`;
 });
 
