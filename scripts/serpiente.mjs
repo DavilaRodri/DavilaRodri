@@ -23,11 +23,12 @@ const pos = (x, y) => [M + x * C + T / 2, M + y * C + T / 2];
 // Recorrido en zigzag por columnas, pasando por todas las celdas existentes
 const porCol = {};
 celdas.forEach(c => (porCol[c.x] ||= []).push(c));
+// (las semanas a medias se rellenan con huecos para que no haya saltos)
 const ruta = [];
 for (let x = 0; x < cols; x++) {
-  const col = (porCol[x] || []).sort((a, b) => a.y - b.y);
-  if (x % 2) col.reverse();
-  ruta.push(...col);
+  const filas = [0, 1, 2, 3, 4, 5, 6];
+  if (x % 2) filas.reverse();
+  filas.forEach(y => ruta.push((porCol[x] || []).find(c => c.y === y) || { x, y, n: 0, hueco: true }));
 }
 // Entra por la izquierda y sale por la derecha
 // (todos los tramos miden una celda, así el avance es uniforme)
