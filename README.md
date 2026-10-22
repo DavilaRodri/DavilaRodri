@@ -103,3 +103,4 @@ I design **multi-agent systems** for banking and build **my own apps, from idea 
   <a href="https://rodrigodavila.com"><b>Walk the whole city at rodrigodavila.com →</b></a><br>
   <sub>Game mode, an AI assistant that has read my CV, and every project in detail.</sub>
 </p>
+
