@@ -43,18 +43,22 @@ const comidas = [];
 ruta.forEach((c, i) => { if (c.n > 0) comidas.push({ c, paso: i + 1 }); });
 const segmentos = Math.min(MAX, comidas.length) + 1;   // cabeza + uno por comida
 const total = (largoRuta + segmentos) * PASO + 1;      // + pausa al final
-const pct = s => (Math.min(100, (s * PASO / total) * 100)).toFixed(3) + '%';
+const fr = s => Math.min(1, (s * PASO) / total).toFixed(4);   // fracción del ciclo
+const dur = `dur="${total.toFixed(2)}s" repeatCount="indefinite"`;
 
-let css = `.s{offset-path:path('${d}');offset-rotate:0deg;animation-duration:${total.toFixed(2)}s;animation-iteration-count:infinite;animation-timing-function:linear}`;
+// Animación SMIL (no CSS): funciona en todos los navegadores y en la app de GitHub,
+// y no la apaga la opción de "reducir movimiento" del sistema.
 let cuerpo = '';
 for (let k = 0; k < segmentos; k++) {
   // El segmento k va k celdas por detrás de la cabeza y aparece al comer la comida k
   const ini = k, fin = k + largoRuta, aparece = k === 0 ? 0 : comidas[k - 1].paso;
-  css += `@keyframes s${k}{0%{offset-distance:0%;opacity:0}${pct(ini)}{offset-distance:0%;opacity:${k ? 0 : 1}}${k ? `${pct(aparece)}{opacity:0}${pct(aparece + 0.01)}{opacity:1}` : ''}${pct(fin)}{offset-distance:100%;opacity:1}${pct(fin + 0.01)}{opacity:0}100%{offset-distance:100%;opacity:0}}`;
-  css += `.s${k}{animation-name:s${k}}`;
+  const mov = `<animateMotion ${dur} calcMode="linear" keyPoints="0;0;1;1" keyTimes="0;${fr(ini)};${fr(fin)};1"><mpath href="#r"/></animateMotion>`;
+  const vis = k === 0
+    ? `<animate attributeName="opacity" values="1;0" keyTimes="0;${fr(fin + 0.01)}" calcMode="discrete" ${dur}/>`
+    : `<animate attributeName="opacity" values="0;1;0" keyTimes="0;${fr(aparece)};${fr(fin + 0.01)}" calcMode="discrete" ${dur}/>`;
   const tam = k === 0 ? 12 : Math.max(6, 11 - k * 0.08);
   const color = k === 0 ? '#22e4ff' : `hsl(${320 - Math.min(k, 40) * 1.5},100%,${62 - Math.min(k, 40) * 0.3}%)`;
-  cuerpo = `<rect class="s s${k}" x="${-tam / 2}" y="${-tam / 2}" width="${tam}" height="${tam}" rx="3" fill="${color}"/>` + cuerpo;
+  cuerpo = `<rect x="${-tam / 2}" y="${-tam / 2}" width="${tam}" height="${tam}" rx="3" fill="${color}" opacity="0">${mov}${vis}</rect>` + cuerpo;
 }
 // Las celdas verdes se apagan cuando la cabeza pasa por encima y vuelven al reiniciar
 let rejilla = '';
@@ -62,14 +66,12 @@ celdas.forEach(c => {
   const [cx, cy] = pos(c.x, c.y);
   const base = `x="${cx - T / 2}" y="${cy - T / 2}" width="${T}" height="${T}" rx="2"`;
   if (!c.n) { rejilla += `<rect ${base} fill="${VERDES[0]}"/>`; return; }
-  const i = ruta.indexOf(c) + 1, id = `c${c.x}_${c.y}`;
-  css += `@keyframes ${id}{0%,${pct(i)}{fill:${VERDES[c.n]}}${pct(i + 0.2)},99.9%{fill:${VERDES[0]}}}.${id}{animation:${id} ${total.toFixed(2)}s linear infinite}`;
-  rejilla += `<rect class="${id}" ${base} fill="${VERDES[c.n]}"/>`;
+  const i = ruta.indexOf(c) + 1;
+  rejilla += `<rect ${base} fill="${VERDES[c.n]}"><animate attributeName="fill" values="${VERDES[c.n]};${VERDES[0]}" keyTimes="0;${fr(i + 0.2)}" calcMode="discrete" ${dur}/></rect>`;
 });
-css += `@media (prefers-reduced-motion:reduce){*{animation:none!important}.s{opacity:0}}`;
 
 const W = M * 2 + cols * C, H = M * 2 + 7 * C;
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><style>${css}</style>${rejilla}<g>${cuerpo}</g></svg>`;
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}"><defs><path id="r" d="${d}"/></defs>${rejilla}<g>${cuerpo}</g></svg>`;
 mkdirSync(dirname(salida), { recursive: true });
 writeFileSync(salida, svg);
 console.log(`ok: ${comidas.length} comidas, ${segmentos} segmentos, ${total.toFixed(1)}s, ${svg.length} bytes`);
